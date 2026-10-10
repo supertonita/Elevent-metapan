@@ -12,7 +12,7 @@
   <!-- SDKs de Firebase Modular -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, doc, setDoc, deleteDoc, onSnapshot, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, doc, setDoc, deleteDoc, getDocs, onSnapshot, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCdGA4uhxWNSPOQ-9AsDiXXA-OLTygkU3U",
@@ -36,6 +36,7 @@
     window.doc = doc;
     window.setDoc = setDoc;
     window.deleteDoc = deleteDoc;
+    window.getDocs = getDocs;
     window.collection = collection;
     window.onSnapshot = onSnapshot;
   </script>
@@ -463,12 +464,11 @@
       </div>
     </section>
 
-    <!-- VISTA 7: CONFIGURACIÓN (CON MÓDULO DE EDICIÓN DE TICKET) -->
+    <!-- VISTA 7: CONFIGURACIÓN -->
     <section id="configView" class="view-section">
       <div class="title-bar-dark">CONFIGURACIÓN DEL SISTEMA Y TICKET</div>
       <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         
-        <!-- PERSONALIZACIÓN DEL TICKET DE IMPRESIÓN -->
         <div style="background: #f8fafc; border: 1px solid #d0d7e1; padding: 15px; border-radius: 4px; grid-column: span 2;">
           <h3 style="color: var(--accent-blue); margin-bottom: 10px;">🏷️ Personalización del Ticket de Impresión</h3>
           <form id="formConfigTicket" onsubmit="guardarConfigTicket(event)" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
@@ -604,7 +604,6 @@
     let activeTicketId = 1;
     let historialVentas = JSON.parse(localStorage.getItem('pos_historial_ventas') || "[]");
 
-    /* DATOS DE CONFIGURACIÓN DEL TICKET */
     let configTicket = JSON.parse(localStorage.getItem('pos_config_ticket') || 'null') || {
       empresa: "SUPER TOÑITA",
       direccion: "Sucursal Los Fuentes, Av. Principal #12",
@@ -649,7 +648,6 @@
       }
     }
 
-    /* CARGAR CAMPOS DE CONFIGURACIÓN DE TICKET */
     function cargarConfigTicketUI() {
       document.getElementById('cfgEmpresa').value = configTicket.empresa || '';
       document.getElementById('cfgDireccion').value = configTicket.direccion || '';
@@ -696,10 +694,25 @@
       renderLoginUsers();
       renderTablaUsuarios();
       cargarConfigTicketUI();
+      renderTablaCatalogo();
 
+      // Sincronización robusta con Firestore
       const checkFirebase = setInterval(() => {
         if (window.db && window.onSnapshot && window.collection) {
           clearInterval(checkFirebase);
+          
+          // Carga inicial directa de la base de datos
+          window.getDocs(window.collection(window.db, "productos")).then(snapshot => {
+            let loaded = [];
+            snapshot.forEach(docSnap => loaded.push(docSnap.data()));
+            if (loaded.length > 0) {
+              productos = loaded;
+              localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
+              renderTablaCatalogo();
+            }
+          }).catch(err => console.warn("Error cargando productos iniciales:", err));
+
+          // Escuchador en tiempo real para cambios posteriores
           window.onSnapshot(window.collection(window.db, "productos"), (snapshot) => {
             let loaded = [];
             snapshot.forEach(docSnap => loaded.push(docSnap.data()));
@@ -1016,7 +1029,7 @@
       }
     }
 
-    /* PRODUCTOS */
+    /* PRODUCTOS - GUARDADO Y SINCRONIZACIÓN ASÍNCRONA CON FIRESTORE */
     function recalcularPrecios(origen) {
       let costo = parseFloat(document.getElementById('pCosto').value) || 0;
       let ganancia = parseFloat(document.getElementById('pGanancia').value) || 0;
@@ -1031,7 +1044,7 @@
       }
     }
 
-    function guardarProducto(e) {
+    async function guardarProducto(e) {
       e.preventDefault();
       const nuevo = {
         codigo: document.getElementById('pCodigo').value.trim(),
@@ -1045,14 +1058,25 @@
         existencia: parseFloat(document.getElementById('pExistencia').value) || 0
       };
 
+      // 1. Guardar localmente de inmediato para no congelar la UI
       const idx = productos.findIndex(p => p.codigo === nuevo.codigo);
       if (idx > -1) productos[idx] = nuevo; else productos.push(nuevo);
 
       localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
+      renderTablaCatalogo();
+
+      // 2. Intentar guardar en Firebase Firestore
       if (window.db && window.setDoc && window.doc) {
-        window.setDoc(window.doc(window.db, "productos", nuevo.codigo), nuevo);
+        try {
+          await window.setDoc(window.doc(window.db, "productos", nuevo.codigo), nuevo);
+          alert("Producto guardado exitosamente en la base de datos.");
+        } catch (err) {
+          console.error("Error guardando en Firestore:", err);
+          alert("El producto se guardó localmente, pero hubo un detalle al subirlo a Firebase: " + err.message);
+        }
+      } else {
+        alert("Producto guardado en memoria local.");
       }
-      alert("Producto guardado exitosamente.");
       mostrarSubVistaProd('catalogo');
     }
 
@@ -1074,20 +1098,27 @@
       mostrarSubVistaProd('nuevo');
     }
 
-    function borrarProd(cod) {
+    async function borrarProd(cod) {
       if (confirm(`¿Eliminar producto ${cod}?`)) {
         productos = productos.filter(p => p.codigo !== cod);
         localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
-        if (window.db && window.deleteDoc && window.doc) {
-          window.deleteDoc(window.doc(window.db, "productos", cod));
-        }
         renderTablaCatalogo();
+
+        if (window.db && window.deleteDoc && window.doc) {
+          try {
+            await window.deleteDoc(window.doc(window.db, "productos", cod));
+          } catch (err) {
+            console.error("Error eliminando en Firestore:", err);
+          }
+        }
       }
     }
 
     function renderTablaCatalogo() {
       const q = document.getElementById('searchProdTable') ? document.getElementById('searchProdTable').value.toLowerCase() : '';
       const tbody = document.getElementById('catalogoTableBody');
+      if (!tbody) return;
+      
       tbody.innerHTML = productos.filter(p => p.descripcion.toLowerCase().includes(q) || p.codigo.includes(q)).map(p => `
         <tr>
           <td>${p.codigo}</td>
@@ -1198,7 +1229,7 @@
       document.getElementById('cobroCambio').innerText = `$${(cambio > 0 ? cambio : 0).toFixed(2)}`;
     }
 
-    function confirmarVenta(imprimir) {
+    async function confirmarVenta(imprimir) {
       const t = getActiveTicket();
       let subtotal = t.cart.reduce((a,i) => a + (i.precio * i.cantidad), 0);
       let desc = t.tipoDescuento === 'porcentaje' ? (subtotal * (t.descuento/100)) : t.descuento;
@@ -1222,7 +1253,11 @@
       ventasTurnoActual.push(ventaObj);
 
       if (window.db && window.addDoc && window.collection) {
-        window.addDoc(window.collection(window.db, "ventas"), ventaObj);
+        try {
+          await window.addDoc(window.collection(window.db, "ventas"), ventaObj);
+        } catch (e) {
+          console.warn("Venta guardada localmente, falló la subida a Firestore:", e);
+        }
       }
 
       if (imprimir) imprimirTicketTermico(ventaObj);
@@ -1233,7 +1268,7 @@
       actualizarCorteCaja();
     }
 
-    /* TICKET IMPRESO DINÁMICO CON DATOS DE CONFIGURACIÓN */
+    /* TICKET IMPRESO DINÁMICO */
     function imprimirTicketTermico(venta) {
       const ancho = document.getElementById('printerWidthSelect').value;
       const widthPx = (ancho === '58mm') ? '200px' : '280px';
@@ -1315,7 +1350,7 @@
       document.getElementById('corteGanancia').innerText = `$${gan.toFixed(2)}`;
     }
 
-    /* REPORTES AVANZADOS CON FILTRO TEMPORAL, TOPS Y GRÁFICAS */
+    /* REPORTES Y METRICAS */
     function actualizarReportes() {
       const filtro = document.getElementById('repFiltroTiempo').value;
       const ahora = new Date();
@@ -1413,16 +1448,17 @@
       XLSX.writeFile(wb, `Reporte_Ventas_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
-    function importarExcelProductos(e) {
+    async function importarExcelProductos(e) {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = function(evt) {
+      reader.onload = async function(evt) {
         const data = new Uint8Array(evt.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
-        rows.forEach(r => {
+        let importadosCount = 0;
+        for (const r of rows) {
           const codigo = String(r.Codigo || r.CODIGO || '').trim();
           const descripcion = String(r.Descripcion || r.DESCRIPCION || '').trim();
           const costo = parseFloat(r.Costo || 0);
@@ -1435,12 +1471,17 @@
             if (idx > -1) productos[idx] = nuevo; else productos.push(nuevo);
             
             if (window.db && window.setDoc && window.doc) {
-              window.setDoc(window.doc(window.db, "productos", codigo), nuevo);
+              try {
+                await window.setDoc(window.doc(window.db, "productos", codigo), nuevo);
+              } catch(err) {
+                console.warn(`Error guardando ${codigo} en Firestore:`, err);
+              }
             }
+            importadosCount++;
           }
-        });
+        }
         localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
-        alert(`¡Éxito! Se importaron ${rows.length} productos.`);
+        alert(`¡Éxito! Se procesaron e importaron ${importadosCount} productos correctamente.`);
         renderTablaCatalogo();
       };
       reader.readAsArrayBuffer(file);
