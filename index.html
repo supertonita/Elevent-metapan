@@ -27,6 +27,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // Habilitar Persistencia Offline en Firestore
     enableIndexedDbPersistence(db).catch((err) => {
       console.warn("Persistencia Firestore no activada:", err.code);
     });
@@ -61,7 +62,7 @@
     .card-dialog h2 { color: var(--accent-blue); text-align: center; margin-bottom: 15px; font-size: 18px; }
     .field-group { margin-bottom: 12px; }
     .field-group label { display: block; font-weight: bold; margin-bottom: 4px; color: #333; }
-    .field-group input, .field-group select, .field-group textarea { width: 100%; padding: 8px; border: 1px solid #7f9db9; outline: none; border-radius: 3px; font-size: 13px; }
+    .field-group input, .field-group select { width: 100%; padding: 8px; border: 1px solid #7f9db9; outline: none; border-radius: 3px; font-size: 13px; }
     .btn-main { width: 100%; padding: 10px; background: linear-gradient(to bottom, #4c77a6, #1d528d); color: #fff; border: none; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; margin-top: 5px; }
 
     /* NAVEGACIÓN SUPERIOR */
@@ -72,8 +73,9 @@
     .nav-btn { background: linear-gradient(to bottom, #ffffff, #e2e7ee); border: 1px solid #99a5b4; border-radius: 3px; padding: 4px 10px; cursor: pointer; font-weight: 600; color: #222; display: flex; align-items: center; gap: 4px; }
     .nav-btn.active { background: linear-gradient(to bottom, #dbe4f0, #b0c2d8); border-color: var(--accent-blue); }
 
-    .net-status { padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 11px; color: #fff; }
+    .net-status { padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 11px; color: #fff; transition: background 0.3s; }
     .net-online { background-color: #28a745; }
+    .net-offline { background-color: #dc3545; }
 
     /* PESTAÑAS TICKETS SIMULTÁNEOS */
     .ticket-tabs-bar { background: #d0d7e1; border-bottom: 1px solid var(--border-color); padding: 3px 8px 0 8px; display: flex; gap: 4px; align-items: center; overflow-x: auto; }
@@ -466,45 +468,8 @@
 
     <!-- VISTA 7: CONFIGURACIÓN -->
     <section id="configView" class="view-section">
-      <div class="title-bar-dark">CONFIGURACIÓN DEL SISTEMA Y TICKET</div>
+      <div class="title-bar-dark">CONFIGURACIÓN DEL SISTEMA</div>
       <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        
-        <div style="background: #f8fafc; border: 1px solid #d0d7e1; padding: 15px; border-radius: 4px; grid-column: span 2;">
-          <h3 style="color: var(--accent-blue); margin-bottom: 10px;">🏷️ Personalización del Ticket de Impresión</h3>
-          <form id="formConfigTicket" onsubmit="guardarConfigTicket(event)" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-            <div>
-              <div class="field-group">
-                <label>Nombre de la Empresa / Sucursal:</label>
-                <input type="text" id="cfgEmpresa" value="SUPER TOÑITA" placeholder="Ej: Super Toñita - Los Fuentes" required>
-              </div>
-              <div class="field-group">
-                <label>Dirección Física:</label>
-                <input type="text" id="cfgDireccion" value="Sucursal Los Fuentes, Av. Principal #12" placeholder="Ej: Av. Principal #12, Los Fuentes">
-              </div>
-              <div class="field-group">
-                <label>Teléfono(s):</label>
-                <input type="text" id="cfgTelefono" value="2600-0000 / 7000-0000" placeholder="Ej: 2600-0000 / 7000-0000">
-              </div>
-              <div class="field-group">
-                <label>Mensaje de Pie de Ticket:</label>
-                <input type="text" id="cfgMensajePie" value="¡Gracias por su compra, vuelva pronto!" placeholder="Ej: ¡Gracias por su compra!">
-              </div>
-            </div>
-
-            <div>
-              <div class="field-group">
-                <label>Logo del Negocio (Imagen para Ticket):</label>
-                <input type="file" id="cfgLogoFile" accept="image/*" onchange="cargarLogoPreview(event)">
-                <div style="margin-top: 10px; text-align: center; border: 1px dashed #ccc; padding: 10px; background: #fff; min-height: 100px; display: flex; align-items: center; justify-content: center;">
-                  <img id="cfgLogoPreview" src="" alt="Vista previa del Logo" style="max-height: 90px; max-width: 100%; display: none;">
-                  <span id="cfgLogoText" style="color: #888;">Sin Logo Seleccionado</span>
-                </div>
-              </div>
-              <button type="submit" class="btn-main" style="background: #28a745; margin-top: 15px;">💾 Guardar Datos del Ticket</button>
-            </div>
-          </form>
-        </div>
-
         <div style="background: #f8fafc; border: 1px solid #d0d7e1; padding: 15px; border-radius: 4px;">
           <h3 style="color: var(--accent-blue); margin-bottom: 10px;">🖨️ Selección de Impresora</h3>
           <div class="field-group">
@@ -524,7 +489,6 @@
           </div>
           <ul id="deptosList" style="list-style: none; padding:0;"></ul>
         </div>
-
       </div>
     </section>
   </main>
@@ -532,7 +496,7 @@
   <!-- MODAL BUSCADOR FLOTANTE (F11) -->
   <div class="modal-overlay" id="buscadorModal">
     <div class="card-dialog" style="width: 650px;">
-      <h2>🔍 Buscador de Productos (Teclas ↑/↓ y ENTER)</h2>
+      <h2>🔍 Buscador de Productos</h2>
       <input type="text" id="searchBuscadorInput" placeholder="Escribe el nombre del producto..." oninput="filtrarBuscadorModal()" style="width:100%; padding:8px; margin-bottom:10px; font-size:14px;">
       <div style="max-height: 320px; overflow-y: auto;" class="table-container">
         <table>
@@ -604,14 +568,6 @@
     let activeTicketId = 1;
     let historialVentas = JSON.parse(localStorage.getItem('pos_historial_ventas') || "[]");
 
-    let configTicket = JSON.parse(localStorage.getItem('pos_config_ticket') || 'null') || {
-      empresa: "SUPER TOÑITA",
-      direccion: "Sucursal Los Fuentes, Av. Principal #12",
-      telefono: "2600-0000 / 7000-0000",
-      mensajePie: "¡Gracias por su compra, vuelva pronto!",
-      logoBase64: ""
-    };
-
     let buscadorResultados = [];
     let buscadorSelectedIndex = 0;
 
@@ -620,6 +576,22 @@
     let fondoCajaInicial = 0;
     let chartSalesInstance = null;
     let chartDeptosInstance = null;
+
+    /* DETECCIÓN AUTOMÁTICA DE CONEXIÓN A INTERNET */
+    function actualizarEstadoRed() {
+      const badge = document.getElementById('netStatusBadge');
+      if (!badge) return;
+      if (navigator.onLine) {
+        badge.innerText = 'ONLINE';
+        badge.className = 'net-status net-online';
+      } else {
+        badge.innerText = 'OFFLINE (MODO CAJA)';
+        badge.className = 'net-status net-offline';
+      }
+    }
+
+    window.addEventListener('online', actualizarEstadoRed);
+    window.addEventListener('offline', actualizarEstadoRed);
 
     function procesarCodigoBalanza(val) {
       if (val.length === 12 && val.startsWith('20')) {
@@ -648,71 +620,17 @@
       }
     }
 
-    function cargarConfigTicketUI() {
-      document.getElementById('cfgEmpresa').value = configTicket.empresa || '';
-      document.getElementById('cfgDireccion').value = configTicket.direccion || '';
-      document.getElementById('cfgTelefono').value = configTicket.telefono || '';
-      document.getElementById('cfgMensajePie').value = configTicket.mensajePie || '';
-      
-      const imgPrev = document.getElementById('cfgLogoPreview');
-      const txtPrev = document.getElementById('cfgLogoText');
-      if (configTicket.logoBase64) {
-        imgPrev.src = configTicket.logoBase64;
-        imgPrev.style.display = 'block';
-        txtPrev.style.display = 'none';
-      } else {
-        imgPrev.style.display = 'none';
-        txtPrev.style.display = 'inline';
-      }
-    }
-
-    function cargarLogoPreview(e) {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-          configTicket.logoBase64 = evt.target.result;
-          cargarConfigTicketUI();
-        };
-        reader.readAsDataURL(file);
-      }
-    }
-
-    function guardarConfigTicket(e) {
-      e.preventDefault();
-      configTicket.empresa = document.getElementById('cfgEmpresa').value.trim();
-      configTicket.direccion = document.getElementById('cfgDireccion').value.trim();
-      configTicket.telefono = document.getElementById('cfgTelefono').value.trim();
-      configTicket.mensajePie = document.getElementById('cfgMensajePie').value.trim();
-
-      localStorage.setItem('pos_config_ticket', JSON.stringify(configTicket));
-      alert("¡Datos del ticket guardados correctamente!");
-    }
-
     window.addEventListener('DOMContentLoaded', () => {
+      actualizarEstadoRed();
       renderDepartamentosSelect();
       renderLoginUsers();
       renderTablaUsuarios();
-      cargarConfigTicketUI();
-      renderTablaCatalogo();
 
-      // Sincronización robusta con Firestore
       const checkFirebase = setInterval(() => {
         if (window.db && window.onSnapshot && window.collection) {
           clearInterval(checkFirebase);
           
-          // Carga inicial directa de la base de datos
-          window.getDocs(window.collection(window.db, "productos")).then(snapshot => {
-            let loaded = [];
-            snapshot.forEach(docSnap => loaded.push(docSnap.data()));
-            if (loaded.length > 0) {
-              productos = loaded;
-              localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
-              renderTablaCatalogo();
-            }
-          }).catch(err => console.warn("Error cargando productos iniciales:", err));
-
-          // Escuchador en tiempo real para cambios posteriores
+          // Suscripción con lectura desde caché local si no hay internet
           window.onSnapshot(window.collection(window.db, "productos"), (snapshot) => {
             let loaded = [];
             snapshot.forEach(docSnap => loaded.push(docSnap.data()));
@@ -721,6 +639,8 @@
               localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
               renderTablaCatalogo();
             }
+          }, (error) => {
+            console.warn("Firestore trabajando en modo fuera de línea:", error);
           });
         }
       }, 200);
@@ -771,7 +691,6 @@
       if (viewId === 'corteView') { actualizarCorteCaja(); }
       if (viewId === 'reportesView') { actualizarReportes(); }
       if (viewId === 'usuariosView') { renderTablaUsuarios(); }
-      if (viewId === 'configView') { cargarConfigTicketUI(); }
     }
 
     function focusBarcode() {
@@ -900,7 +819,7 @@
       renderCart();
     }
 
-    /* CONTROL GENERAL DE TECLADO Y NAVEGACIÓN EN CARRITO */
+    /* CONTROL GENERAL DE TECLADO */
     document.addEventListener('keydown', (e) => {
       const posActive = document.getElementById('posView').classList.contains('active');
       const modalBuscador = document.getElementById('buscadorModal').classList.contains('active');
@@ -1029,7 +948,7 @@
       }
     }
 
-    /* PRODUCTOS - GUARDADO Y SINCRONIZACIÓN ASÍNCRONA CON FIRESTORE */
+    /* PRODUCTOS Y SINCRONIZACIÓN OFFLINE */
     function recalcularPrecios(origen) {
       let costo = parseFloat(document.getElementById('pCosto').value) || 0;
       let ganancia = parseFloat(document.getElementById('pGanancia').value) || 0;
@@ -1044,7 +963,7 @@
       }
     }
 
-    async function guardarProducto(e) {
+    function guardarProducto(e) {
       e.preventDefault();
       const nuevo = {
         codigo: document.getElementById('pCodigo').value.trim(),
@@ -1058,25 +977,18 @@
         existencia: parseFloat(document.getElementById('pExistencia').value) || 0
       };
 
-      // 1. Guardar localmente de inmediato para no congelar la UI
       const idx = productos.findIndex(p => p.codigo === nuevo.codigo);
       if (idx > -1) productos[idx] = nuevo; else productos.push(nuevo);
 
       localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
-      renderTablaCatalogo();
 
-      // 2. Intentar guardar en Firebase Firestore
+      // Guardar en Firestore (se guarda en cola local si no hay internet)
       if (window.db && window.setDoc && window.doc) {
-        try {
-          await window.setDoc(window.doc(window.db, "productos", nuevo.codigo), nuevo);
-          alert("Producto guardado exitosamente en la base de datos.");
-        } catch (err) {
-          console.error("Error guardando en Firestore:", err);
-          alert("El producto se guardó localmente, pero hubo un detalle al subirlo a Firebase: " + err.message);
-        }
-      } else {
-        alert("Producto guardado en memoria local.");
+        window.setDoc(window.doc(window.db, "productos", nuevo.codigo), nuevo).catch(err => {
+          console.warn("Producto guardado en cola local Firestore:", err);
+        });
       }
+      alert("Producto guardado exitosamente.");
       mostrarSubVistaProd('catalogo');
     }
 
@@ -1098,27 +1010,20 @@
       mostrarSubVistaProd('nuevo');
     }
 
-    async function borrarProd(cod) {
+    function borrarProd(cod) {
       if (confirm(`¿Eliminar producto ${cod}?`)) {
         productos = productos.filter(p => p.codigo !== cod);
         localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
-        renderTablaCatalogo();
-
         if (window.db && window.deleteDoc && window.doc) {
-          try {
-            await window.deleteDoc(window.doc(window.db, "productos", cod));
-          } catch (err) {
-            console.error("Error eliminando en Firestore:", err);
-          }
+          window.deleteDoc(window.doc(window.db, "productos", cod)).catch(err => console.warn(err));
         }
+        renderTablaCatalogo();
       }
     }
 
     function renderTablaCatalogo() {
       const q = document.getElementById('searchProdTable') ? document.getElementById('searchProdTable').value.toLowerCase() : '';
       const tbody = document.getElementById('catalogoTableBody');
-      if (!tbody) return;
-      
       tbody.innerHTML = productos.filter(p => p.descripcion.toLowerCase().includes(q) || p.codigo.includes(q)).map(p => `
         <tr>
           <td>${p.codigo}</td>
@@ -1229,7 +1134,8 @@
       document.getElementById('cobroCambio').innerText = `$${(cambio > 0 ? cambio : 0).toFixed(2)}`;
     }
 
-    async function confirmarVenta(imprimir) {
+    /* COBRO Y SINCRONIZACIÓN DE VENTAS OFFLINE */
+    function confirmarVenta(imprimir) {
       const t = getActiveTicket();
       let subtotal = t.cart.reduce((a,i) => a + (i.precio * i.cantidad), 0);
       let desc = t.tipoDescuento === 'porcentaje' ? (subtotal * (t.descuento/100)) : t.descuento;
@@ -1248,16 +1154,16 @@
         items: JSON.parse(JSON.stringify(t.cart))
       };
 
+      // 1. Guardar en almacenamiento local del navegador para acceso instantáneo
       historialVentas.unshift(ventaObj);
       localStorage.setItem('pos_historial_ventas', JSON.stringify(historialVentas));
       ventasTurnoActual.push(ventaObj);
 
+      // 2. Enviar a Firestore (Si está offline, lo guarda localmente y se envía al reconectar)
       if (window.db && window.addDoc && window.collection) {
-        try {
-          await window.addDoc(window.collection(window.db, "ventas"), ventaObj);
-        } catch (e) {
-          console.warn("Venta guardada localmente, falló la subida a Firestore:", e);
-        }
+        window.addDoc(window.collection(window.db, "ventas"), ventaObj).catch(err => {
+          console.warn("Venta guardada localmente (pendiente de sincronización):", err);
+        });
       }
 
       if (imprimir) imprimirTicketTermico(ventaObj);
@@ -1268,14 +1174,11 @@
       actualizarCorteCaja();
     }
 
-    /* TICKET IMPRESO DINÁMICO */
     function imprimirTicketTermico(venta) {
       const ancho = document.getElementById('printerWidthSelect').value;
       const widthPx = (ancho === '58mm') ? '200px' : '280px';
       const win = window.open('','','width=400,height=600');
       
-      const logoHtml = configTicket.logoBase64 ? `<div class="center"><img src="${configTicket.logoBase64}" style="max-width: 120px; filter: grayscale(100%); margin-bottom: 5px;"></div>` : '';
-
       win.document.write(`
         <html><head><style>
           @page { margin: 0; }
@@ -1285,15 +1188,7 @@
           table { width: 100%; font-size: 11px; }
         </style></head>
         <body>
-          ${logoHtml}
-          <div class="center">
-            <b>${configTicket.empresa || 'SUPER TOÑITA'}</b><br>
-            ${configTicket.direccion ? `${configTicket.direccion}<br>` : ''}
-            ${configTicket.telefono ? `Tel: ${configTicket.telefono}<br>` : ''}
-            Folio: ${venta.folio}<br>
-            ${new Date(venta.fecha).toLocaleString()}<br>
-            Cajero: ${venta.cajero}
-          </div>
+          <div class="center"><b>SUPER TOÑITA</b><br>Folio: ${venta.folio}<br>${new Date(venta.fecha).toLocaleString()}</div>
           <div class="divider"></div>
           <table>
             ${venta.items.map(i => `<tr><td>${i.descripcion.substring(0,18)}<br>${i.cantidad} x $${i.precio.toFixed(2)}</td><td class="right">$${(i.cantidad*i.precio).toFixed(2)}</td></tr>`).join('')}
@@ -1307,11 +1202,11 @@
             <tr><td>Cambio:</td><td class="right">$${venta.cambio.toFixed(2)}</td></tr>
           </table>
           <div class="divider"></div>
-          <div class="center">${configTicket.mensajePie || '¡Gracias por su compra!'}</div>
+          <div class="center">¡Gracias por su compra!</div>
         </body></html>
       `);
       win.document.close(); win.focus();
-      setTimeout(() => { win.print(); win.close(); }, 300);
+      setTimeout(() => { win.print(); win.close(); }, 250);
     }
 
     function filtrarHistorialTickets() {
@@ -1350,7 +1245,7 @@
       document.getElementById('corteGanancia').innerText = `$${gan.toFixed(2)}`;
     }
 
-    /* REPORTES Y METRICAS */
+    /* REPORTES AVANZADOS */
     function actualizarReportes() {
       const filtro = document.getElementById('repFiltroTiempo').value;
       const ahora = new Date();
@@ -1448,17 +1343,16 @@
       XLSX.writeFile(wb, `Reporte_Ventas_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
-    async function importarExcelProductos(e) {
+    function importarExcelProductos(e) {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = async function(evt) {
+      reader.onload = function(evt) {
         const data = new Uint8Array(evt.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
         
-        let importadosCount = 0;
-        for (const r of rows) {
+        rows.forEach(r => {
           const codigo = String(r.Codigo || r.CODIGO || '').trim();
           const descripcion = String(r.Descripcion || r.DESCRIPCION || '').trim();
           const costo = parseFloat(r.Costo || 0);
@@ -1471,17 +1365,12 @@
             if (idx > -1) productos[idx] = nuevo; else productos.push(nuevo);
             
             if (window.db && window.setDoc && window.doc) {
-              try {
-                await window.setDoc(window.doc(window.db, "productos", codigo), nuevo);
-              } catch(err) {
-                console.warn(`Error guardando ${codigo} en Firestore:`, err);
-              }
+              window.setDoc(window.doc(window.db, "productos", codigo), nuevo).catch(e => console.warn(e));
             }
-            importadosCount++;
           }
-        }
+        });
         localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
-        alert(`¡Éxito! Se procesaron e importaron ${importadosCount} productos correctamente.`);
+        alert(`¡Éxito! Se importaron ${rows.length} productos.`);
         renderTablaCatalogo();
       };
       reader.readAsArrayBuffer(file);
