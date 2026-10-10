@@ -27,7 +27,6 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Habilitar Persistencia Offline en Firestore
     enableIndexedDbPersistence(db).catch((err) => {
       console.warn("Persistencia Firestore no activada:", err.code);
     });
@@ -73,7 +72,7 @@
     .nav-btn { background: linear-gradient(to bottom, #ffffff, #e2e7ee); border: 1px solid #99a5b4; border-radius: 3px; padding: 4px 10px; cursor: pointer; font-weight: 600; color: #222; display: flex; align-items: center; gap: 4px; }
     .nav-btn.active { background: linear-gradient(to bottom, #dbe4f0, #b0c2d8); border-color: var(--accent-blue); }
 
-    .net-status { padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 11px; color: #fff; transition: background 0.3s; }
+    .net-status { padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 11px; color: #fff; }
     .net-online { background-color: #28a745; }
     .net-offline { background-color: #dc3545; }
 
@@ -329,7 +328,7 @@
 
     <!-- VISTA 3: HISTORIAL TICKETS -->
     <section id="historialView" class="view-section">
-      <div class="title-bar-dark">HISTORIAL DE TICKETS Y BÚSQUEDA</div>
+      <div class="title-bar-dark">HISTORIAL DE TICKETS Y BÚSQUEDA (SINCRONIZADO)</div>
       <div class="sub-menu-bar">
         <label><b>Buscar Folio / Nombre:</b> <input type="text" id="searchHistorialInput" placeholder="Ej: TK-123..." oninput="filtrarHistorialTickets()" style="padding: 2px 5px;"></label>
         <label><b>Fecha:</b> <input type="date" id="searchHistorialFecha" onchange="filtrarHistorialTickets()" style="padding: 2px 5px;"></label>
@@ -346,13 +345,13 @@
 
     <!-- VISTA 4: CORTE DE CAJA -->
     <section id="corteView" class="view-section">
-      <div class="title-bar-green">CORTE DE CAJA EN TIEMPO REAL</div>
+      <div class="title-bar-green">CORTE DE CAJA EN TIEMPO REAL (SINCRONIZADO)</div>
       <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div style="background: #f8fafc; border: 1px solid #d0d7e1; padding: 15px; border-radius: 4px;">
-          <h3 style="color: var(--green-corte); margin-bottom: 10px;">💵 Dinero en Caja</h3>
+          <h3 style="color: var(--green-corte); margin-bottom: 10px;">💵 Dinero en Caja (Efectivo Esperado)</h3>
           <div style="display:flex; justify-content:space-between; padding:4px 0;"><span>Fondo Inicial:</span> <span id="corteFondoInicial">$0.00</span></div>
-          <div style="display:flex; justify-content:space-between; padding:4px 0;"><span>Ventas en Efectivo:</span> <span id="corteEfectivo" style="color:green;">+ $0.00</span></div>
-          <div style="display:flex; justify-content:space-between; padding:8px 0; font-weight:bold; border-top:1px dashed #ccc;"><span>Total en Caja:</span> <span id="corteTotalCaja">$0.00</span></div>
+          <div style="display:flex; justify-content:space-between; padding:4px 0;"><span>Ventas en Efectivo (Global):</span> <span id="corteEfectivo" style="color:green;">+ $0.00</span></div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0; font-weight:bold; border-top:1px dashed #ccc;"><span>Total Esperado en Caja:</span> <span id="corteTotalCaja" style="color:#1d528d; font-size:15px;">$0.00</span></div>
         </div>
 
         <div style="background: #f8fafc; border: 1px solid #d0d7e1; padding: 15px; border-radius: 4px;">
@@ -366,7 +365,7 @@
 
     <!-- VISTA 5: REPORTES Y COMPARATIVAS AVANZADAS -->
     <section id="reportesView" class="view-section">
-      <div class="title-bar-dark">REPORTES Y MÉTRICAS AVANZADAS</div>
+      <div class="title-bar-dark">REPORTES Y MÉTRICAS AVANZADAS (SINCRONIZADO)</div>
       <div class="sub-menu-bar">
         <label><b>Rango Temporal:</b> 
           <select id="repFiltroTiempo" onchange="actualizarReportes()">
@@ -571,13 +570,12 @@
     let buscadorResultados = [];
     let buscadorSelectedIndex = 0;
 
-    let ventasTurnoActual = [];
     let usuarioActual = null;
     let fondoCajaInicial = 0;
+    let turnoHoraInicio = null; // Para filtrar las ventas del turno actual
     let chartSalesInstance = null;
     let chartDeptosInstance = null;
 
-    /* DETECCIÓN AUTOMÁTICA DE CONEXIÓN A INTERNET */
     function actualizarEstadoRed() {
       const badge = document.getElementById('netStatusBadge');
       if (!badge) return;
@@ -620,6 +618,7 @@
       }
     }
 
+    /* INICIALIZACIÓN Y ESCUCHADORES EN TIEMPO REAL DESDE FIRESTORE */
     window.addEventListener('DOMContentLoaded', () => {
       actualizarEstadoRed();
       renderDepartamentosSelect();
@@ -630,7 +629,7 @@
         if (window.db && window.onSnapshot && window.collection) {
           clearInterval(checkFirebase);
           
-          // Suscripción con lectura desde caché local si no hay internet
+          // Sincronizar Productos en tiempo real
           window.onSnapshot(window.collection(window.db, "productos"), (snapshot) => {
             let loaded = [];
             snapshot.forEach(docSnap => loaded.push(docSnap.data()));
@@ -639,8 +638,22 @@
               localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
               renderTablaCatalogo();
             }
-          }, (error) => {
-            console.warn("Firestore trabajando en modo fuera de línea:", error);
+          });
+
+          // Sincronizar Historial de Ventas en tiempo real (Teléfono y PC sincronizados)
+          window.onSnapshot(window.collection(window.db, "ventas"), (snapshot) => {
+            let loadedVentas = [];
+            snapshot.forEach(docSnap => loadedVentas.push(docSnap.data()));
+            // Ordenar por fecha descendente
+            loadedVentas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+            if (loadedVentas.length > 0) {
+              historialVentas = loadedVentas;
+              localStorage.setItem('pos_historial_ventas', JSON.stringify(historialVentas));
+            }
+            // Actualizar vistas si están activas
+            if (document.getElementById('historialView').classList.contains('active')) filtrarHistorialTickets();
+            if (document.getElementById('corteView').classList.contains('active')) actualizarCorteCaja();
+            if (document.getElementById('reportesView').classList.contains('active')) actualizarReportes();
           });
         }
       }, 200);
@@ -668,6 +681,7 @@
 
     function iniciarTurnoCaja() {
       fondoCajaInicial = parseFloat(document.getElementById('fondoInicialInput').value) || 0;
+      turnoHoraInicio = new Date(); // Marca el inicio del turno para el corte de caja
       document.getElementById('aperturaCajaScreen').style.display = 'none';
       switchNav('posView');
     }
@@ -948,7 +962,7 @@
       }
     }
 
-    /* PRODUCTOS Y SINCRONIZACIÓN OFFLINE */
+    /* PRODUCTOS */
     function recalcularPrecios(origen) {
       let costo = parseFloat(document.getElementById('pCosto').value) || 0;
       let ganancia = parseFloat(document.getElementById('pGanancia').value) || 0;
@@ -982,11 +996,8 @@
 
       localStorage.setItem('pos_productos_cache', JSON.stringify(productos));
 
-      // Guardar en Firestore (se guarda en cola local si no hay internet)
       if (window.db && window.setDoc && window.doc) {
-        window.setDoc(window.doc(window.db, "productos", nuevo.codigo), nuevo).catch(err => {
-          console.warn("Producto guardado en cola local Firestore:", err);
-        });
+        window.setDoc(window.doc(window.db, "productos", nuevo.codigo), nuevo).catch(err => console.warn(err));
       }
       alert("Producto guardado exitosamente.");
       mostrarSubVistaProd('catalogo');
@@ -1024,6 +1035,7 @@
     function renderTablaCatalogo() {
       const q = document.getElementById('searchProdTable') ? document.getElementById('searchProdTable').value.toLowerCase() : '';
       const tbody = document.getElementById('catalogoTableBody');
+      if (!tbody) return;
       tbody.innerHTML = productos.filter(p => p.descripcion.toLowerCase().includes(q) || p.codigo.includes(q)).map(p => `
         <tr>
           <td>${p.codigo}</td>
@@ -1134,7 +1146,7 @@
       document.getElementById('cobroCambio').innerText = `$${(cambio > 0 ? cambio : 0).toFixed(2)}`;
     }
 
-    /* COBRO Y SINCRONIZACIÓN DE VENTAS OFFLINE */
+    /* COBRO Y ENVÍO A FIRESTORE */
     function confirmarVenta(imprimir) {
       const t = getActiveTicket();
       let subtotal = t.cart.reduce((a,i) => a + (i.precio * i.cantidad), 0);
@@ -1154,12 +1166,7 @@
         items: JSON.parse(JSON.stringify(t.cart))
       };
 
-      // 1. Guardar en almacenamiento local del navegador para acceso instantáneo
-      historialVentas.unshift(ventaObj);
-      localStorage.setItem('pos_historial_ventas', JSON.stringify(historialVentas));
-      ventasTurnoActual.push(ventaObj);
-
-      // 2. Enviar a Firestore (Si está offline, lo guarda localmente y se envía al reconectar)
+      // Enviar a Firestore (se sincroniza automáticamente en teléfono y PC)
       if (window.db && window.addDoc && window.collection) {
         window.addDoc(window.collection(window.db, "ventas"), ventaObj).catch(err => {
           console.warn("Venta guardada localmente (pendiente de sincronización):", err);
@@ -1213,6 +1220,7 @@
       const q = document.getElementById('searchHistorialInput').value.toLowerCase();
       const f = document.getElementById('searchHistorialFecha').value;
       const tbody = document.getElementById('historialTableBody');
+      if (!tbody) return;
       tbody.innerHTML = historialVentas.filter(v => {
         const matchQ = v.folio.toLowerCase().includes(q) || v.cajero.toLowerCase().includes(q);
         const matchF = !f || v.fecha.startsWith(f);
@@ -1229,13 +1237,19 @@
       `).join('');
     }
 
-    /* CORTE DE CAJA */
+    /* CORTE DE CAJA INTELIGENTE Y SINCRONIZADO */
     function actualizarCorteCaja() {
+      // Filtrar ventas realizadas desde que se inició el turno actual
+      let ventasTurno = historialVentas.filter(v => {
+        if (!turnoHoraInicio) return true;
+        return new Date(v.fecha) >= turnoHoraInicio;
+      });
+
       let efec = 0, total = 0, gan = 0;
-      ventasTurnoActual.forEach(v => {
+      ventasTurno.forEach(v => {
         total += v.total;
         gan += (v.ganancia || 0);
-        efec += v.total;
+        efec += v.total; // Asumiendo cobro en efectivo por defecto
       });
 
       document.getElementById('corteFondoInicial').innerText = `$${fondoCajaInicial.toFixed(2)}`;
@@ -1245,7 +1259,7 @@
       document.getElementById('corteGanancia').innerText = `$${gan.toFixed(2)}`;
     }
 
-    /* REPORTES AVANZADOS */
+    /* REPORTES AVANZADOS SINCRONIZADOS */
     function actualizarReportes() {
       const filtro = document.getElementById('repFiltroTiempo').value;
       const ahora = new Date();
@@ -1378,7 +1392,7 @@
 
     function cerrarTurno() {
       alert("Turno cerrado con éxito.");
-      ventasTurnoActual = [];
+      turnoHoraInicio = new Date(); // Reinicia el contador del turno
       cerrarSesion();
     }
   </script>
