@@ -1512,7 +1512,7 @@ vuelva pronto</textarea></div>
       const ventaObj = procesarYGuardarVentaConFolio(imprimirPapel, folioUnico); 
       if (!ventaObj) return;
 
-      // 3. Guardar ticket en la colección tickets_digitales usando ese folio exacto como ID
+      // 3. Guardar ticket en la colección tickets_digitales usando ese folio exacto como ID del documento
       if (window.db && window.setDoc && window.doc) {
         try {
           await window.setDoc(window.doc(window.db, "tickets_digitales", folioUnico), ventaObj);
@@ -1545,7 +1545,7 @@ vuelva pronto</textarea></div>
         }
 
         const puntosGanados = Math.floor(ventaObj.total);
-        const enlaceTicketWeb = `https://supertonita.github.io/Elevent-Metapan/ticket.html?folio=${folioUnico}`;
+        const enlaceTicketWeb = `https://supertonita.github.io/Eleventa-metapan/ticket.html?folio=${folioUnico}`;
 
         // MENSAJE FORMAL, SOBRIO Y SIN EMOJIS
         const mensajeWhatsApp = 
@@ -1605,8 +1605,8 @@ vuelva pronto</textarea></div>
         localStorage.setItem(turnoKey, JSON.stringify(turnoCaja));
       }
 
-      if (window.db && window.addDoc && window.collection) {
-        window.addDoc(window.collection(window.db, "ventas"), ventaObj);
+      if (window.db && window.setDoc && window.doc) {
+        window.setDoc(window.doc(window.db, "ventas", folioUnico), ventaObj);
       }
 
       if (imprimir) imprimirTicketTermico(ventaObj);
@@ -1634,7 +1634,7 @@ vuelva pronto</textarea></div>
       
       const totalArticulos = venta.items.reduce((acc, i) => acc + i.cantidad, 0);
       const puntosGanados = Math.floor(venta.total); 
-      const urlTiendaBase = "https://supertonita.github.io/Elevent-Metapan/";
+      const urlTiendaBase = "https://supertonita.github.io/mi-tienda-online/";
       
       const datosCanjeJSON = JSON.stringify({
         id: venta.folio,
